@@ -7,37 +7,24 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        
         body {
             font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
             background-color: #f0f4f8; 
-            /* 关键修改：移除 transition，确保背景立即显示 */
             background-size: cover;
             background-position: center bottom;
             background-repeat: no-repeat;
-            background-attachment: fixed; /* 固定背景，防止滚动问题 */
+            background-attachment: fixed;
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
             color: #5a4a42;
             overflow-x: hidden;
-            position: relative;
         }
-
-        /* 调试用：如果 JS 失效，至少有个底色 */
-        body::before {
-            content: '';
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background-color: #eef2f5; 
-            z-index: -2;
-        }
-
         .container {
             width: 90%;
             max-width: 550px;
-            background: rgba(255, 248, 220, 0.90); /* 稍微提高不透明度，确保文字清晰 */
+            background: rgba(255, 248, 220, 0.90);
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
             padding: 40px 30px;
@@ -45,19 +32,16 @@
             box-shadow: 0 10px 30px rgba(0,0,0,0.15);
             text-align: center;
             position: relative;
-            z-index: 10; /* 确保内容在背景之上 */
+            z-index: 10;
             border: 1px solid rgba(255, 255, 255, 0.6);
         }
-
         h1 { color: #d46b6b; margin-bottom: 25px; font-size: 26px; font-weight: bold; letter-spacing: 2px; }
-        
         textarea {
             width: 100%; height: 140px; padding: 20px; border: 2px dashed #e0c9a6; border-radius: 12px;
             font-size: 17px; resize: none; background: rgba(255, 255, 255, 0.7); color: #5a4a42;
             outline: none; transition: all 0.3s; line-height: 1.6; font-family: 'KaiTi', '楷体', serif;
         }
         textarea:focus { border-color: #d46b6b; background: rgba(255, 255, 255, 0.95); box-shadow: 0 0 15px rgba(212, 107, 107, 0.2); transform: scale(1.02); }
-        
         button {
             background: linear-gradient(135deg, #ff9a9e 0%, #fad0c4 100%); color: white; border: none;
             padding: 14px 45px; font-size: 18px; border-radius: 50px; cursor: pointer; margin-top: 25px;
@@ -65,15 +49,12 @@
         }
         button:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(255, 154, 158, 0.6); }
         button:disabled { background: #ccc; cursor: not-allowed; transform: none; box-shadow: none; }
-        
         .status { margin-top: 20px; color: #888; font-size: 15px; line-height: 1.6; background: rgba(255,255,255,0.5); padding: 10px; border-radius: 8px; }
-        
         .result-box {
             display: none; text-align: left; background: rgba(255, 255, 255, 0.9); border: 1px solid #eecfa1;
             padding: 25px; margin-top: 25px; border-radius: 15px; font-size: 17px; line-height: 1.8;
         }
         .hidden { display: none; }
-        
         @media (max-width: 600px) { .container { padding: 30px 20px; width: 85%; } h1 { font-size: 22px; } }
     </style>
 </head>
@@ -109,9 +90,9 @@
     const REPO_NAME = 'trait-mailbox';
     // ===========================================
 
+    // ⚠️ 注意：整个文件里，这行代码只能出现一次！
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // 图片资源映射
     const IMAGES = {
         waiting: `https://raw.githubusercontent.com/${GITHUB_USER}/${REPO_NAME}/main/bg-waiting.png`,
         writing: `https://raw.githubusercontent.com/${GITHUB_USER}/${REPO_NAME}/main/bg-writing.png`,
@@ -119,27 +100,16 @@
         success: `https://raw.githubusercontent.com/${GITHUB_USER}/${REPO_NAME}/main/bg-success.png`
     };
 
-    // 增强版背景设置函数
     function setBackground(imageName) {
         const imgUrl = IMAGES[imageName];
-        if (!imgUrl) {
-            console.error('未找到图片键名:', imageName);
-            return;
-        }
+        if (!imgUrl) return;
         
-        console.log('尝试加载背景:', imgUrl);
-        
-        // 创建一个新的 Image 对象预加载
         const img = new Image();
         img.onload = function() {
-            console.log('图片加载成功！');
             document.body.style.backgroundImage = `url('${imgUrl}')`;
         };
         img.onerror = function() {
-            console.error('图片加载失败！请检查链接是否正确，或是否有跨域问题。');
-            console.log('失败链接:', imgUrl);
-            // 如果加载失败，至少给个提示色
-            document.body.style.backgroundColor = '#ffebee'; 
+            console.error('图片加载失败:', imgUrl);
         };
         img.src = imgUrl;
     }
@@ -177,9 +147,7 @@
         try {
             const { data: existingData, error: fetchError } = await supabase.from('messages').select('*').eq('room_id', roomId).single();
 
-            if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 表示没找到数据，这是正常的
-                throw fetchError;
-            }
+            if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
 
             let updateData = {};
             let isUserA = false;
@@ -197,7 +165,6 @@
             }
 
             const { error } = await supabase.from('messages').upsert(updateData);
-
             if (error) throw error;
 
             btn.innerText = "✅ 已投入信箱";

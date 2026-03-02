@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>特质交换信箱</title>
+    <!-- 引入 Supabase JS 库 -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #fdf6e3; text-align: center; padding: 20px; }
+        .container { max-width: 500px; margin: 0 auto; background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        h1 { color: #ff6b6b; }
+        .character { font-size: 80px; margin: 20px 0; transition: transform 0.3s; }
+        textarea { width: 90%; height: 100px; padding: 15px; border: 2px dashed #ffb7b2; border-radius: 10px; font-size: 16px; resize: none; background: #fff9f9; }
+        button { background: #ff6b6b; color: white; border: none; padding: 12px 30px; font-size: 18px; border-radius: 50px; cursor: pointer; margin-top: 20px; transition: 0.2s; }
+        button:hover { transform: scale(1.05); background: #ff5252; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        .status { margin-top: 15px; color: #888; font-size: 14px; }
+        .result-box { display: none; text-align: left; background: #fff; border: 1px solid #eee; padding: 15px; margin-top: 20px; border-radius: 10px; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>💌 特质交换信箱</h1>
+    
+    <!-- Q版人物占位符，你可以 later 换成图片 -->
+    <div class="character" id="mascot">🧸</div>
+    
+    <div id="input-area">
+        <p>请写下对方的特质：</p>
+        <textarea id="trait-input" placeholder="例如：温柔、像小太阳一样..."></textarea>
+        <br>
+        <button id="submit-btn" onclick="submitTrait()">投入信箱</button>
+        <p class="status" id="status-text">等待中...</p>
+    </div>
+
+    <div id="result-area" class="hidden">
+        <h2>🎉 交换成功！</h2>
+        <div class="result-box">
+            <p><strong>对方写给你的：</strong></p>
+            <p id="other-trait" style="font-style: italic; color: #555;">加载中...</p>
+        </div>
+        <div class="result-box" style="display:block; background:#f9f9f9;">
+            <p><strong>你写给对方的：</strong></p>
+            <p id="my-trait" style="color: #888;"></p>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ================= 配置区域 (稍后你需要在这里填入你的 Supabase 信息) =================
+    const SUPABASE_URL = '你的_SUPABASE_URL'; 
+    const SUPABASE_KEY = '你的_SUPABASE_ANON_KEY';
+    // ===================================================================================
+
+    // 初始化 Supabase
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // 从网址链接中获取房间ID (例如 ?room=abc123)
+    const urlParams = new URLSearchParams(window.location.search);
+    let roomId = urlParams.get('room');
+
+    // 如果没有房间ID，生成一个新的并刷新链接
+    if (!roomId) {
+        roomId = Math.random().toString(36).substring(2, 8); // 生成随机6位字符
+        const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?room=' + roomId;
+        window.history.replaceState({path:newUrl},'',newUrl);
+        document.getElementById('status-text').innerText = `房间已创建！复制链接发给朋友吧：\n${newUrl}`;
+    } else {
+        document.getElementById('status-text').innerText = `房间号：${roomId}，等待双方写入...`;
+        listenForUpdates();
+    }
+
+    async function submitTrait() {
+        const text = document.getElementById('trait-input').value;
+        if (!text.trim()) return alert("请先写点什么哦！");
+
+        const btn = document.getElementById('submit-btn');
+        btn.disabled = true;
+        btn.innerText = "信件飞行中...";
+        document.getElementById('mascot').innerText = "📮"; // 改变表情
+
+        // 判断是用户A还是用户B (简单逻辑：如果数据库里没数据就是A，有A的数据就是B)
+        // 实际项目中需要更严谨的用户身份验证，这里为了演示简化处理
+        const { data: existingData } = await supabase.from('messages').select('*').eq('room_id', roomId).single();
+
+        let updateData = {};
+        if (!existingData || !existingData.user_a) {
+            updateData = { room_id: roomId, user_a: text };
+        } else {
+            updateData = { user_b: text };
+        }
+
+        // 写入数据库
+        const { error } = await supabase.from('messages').upsert(updateData);
+
+        if (error) {
+            alert("出错了：" + error.message);
+            btn.disabled = false;
+            btn.innerText = "重试";
+        } else {
+            btn.innerText = "已投入信箱 ✅";
+            document.getElementById('status-text').innerText = "等待对方也写完...";
+            // 监听变化会在 listenForUpdates 中处理显示结果
+        }
+    }
+
+    function listenForUpdates() {
+        // 实时监听数据库变化
+        supabase.channel('room-' + roomId)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `room_id=eq.${roomId}` }, payload => {
+                checkCompletion(payload.new);
+            })
+            .subscribe();
+        
+        // 初始检查一次
+        supabase.from('messages').select('*').eq('room_id', roomId).single().then(({ data }) => {
+            if(data) checkCompletion(data);
+        });
+    }
+
+    function checkCompletion(data) {
+        if (data && data.user_a && data.user_b) {
+            // 两人都写完了
+            document.getElementById('input-area').classList.add('hidden');
+            document.getElementById('result-area').classList.remove('hidden');
+            document.getElementById('mascot').innerText = "🎉";
+            
+            // 简单的逻辑判断谁是谁 (实际需要根据更复杂的逻辑区分，这里假设先看到的是user_a，后看到的是user_b的互补)
+            // 注意：这个简易版没有区分当前用户是A还是B，所以两个人看到的都是 user_a 和 user_b 的内容
+            // 如果要完美区分，需要引入简单的用户指纹或登录，这里为了免费简单起见，展示所有内容
+            document.getElementById('other-trait').innerText = data.user_a === localStorage.getItem('my_text') ? data.user_b : data.user_a;
+            document.getElementById('my-trait').innerText = localStorage.getItem('my_text') || "未知 (刷新前未保存本地)";
+        }
+    }
+    
+    // 临时保存自己写的字到本地，方便最后显示
+    const originalSubmit = window.submitTrait;
+    window.submitTrait = async function() {
+        const text = document.getElementById('trait-input').value;
+        localStorage.setItem('my_text', text);
+        await originalSubmit();
+    }
+</script>
+
+</body>
+</html>

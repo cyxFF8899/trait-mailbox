@@ -22,17 +22,12 @@
             overflow-x: hidden;
         }
         .container {
-            width: 90%;
-            max-width: 550px;
+            width: 90%; max-width: 550px;
             background: rgba(255, 248, 220, 0.90);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            padding: 40px 30px;
-            border-radius: 20px;
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            padding: 40px 30px; border-radius: 20px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-            text-align: center;
-            position: relative;
-            z-index: 10;
+            text-align: center; position: relative; z-index: 10;
             border: 1px solid rgba(255, 255, 255, 0.6);
         }
         h1 { color: #d46b6b; margin-bottom: 25px; font-size: 26px; font-weight: bold; letter-spacing: 2px; }
@@ -50,10 +45,7 @@
         button:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(255, 154, 158, 0.6); }
         button:disabled { background: #ccc; cursor: not-allowed; transform: none; box-shadow: none; }
         .status { margin-top: 20px; color: #888; font-size: 15px; line-height: 1.6; background: rgba(255,255,255,0.5); padding: 10px; border-radius: 8px; }
-        .result-box {
-            display: none; text-align: left; background: rgba(255, 255, 255, 0.9); border: 1px solid #eecfa1;
-            padding: 25px; margin-top: 25px; border-radius: 15px; font-size: 17px; line-height: 1.8;
-        }
+        .result-box { display: none; text-align: left; background: rgba(255, 255, 255, 0.9); border: 1px solid #eecfa1; padding: 25px; margin-top: 25px; border-radius: 15px; font-size: 17px; line-height: 1.8; }
         .hidden { display: none; }
         @media (max-width: 600px) { .container { padding: 30px 20px; width: 85%; } h1 { font-size: 22px; } }
     </style>
@@ -90,7 +82,7 @@
     const REPO_NAME = 'trait-mailbox';
     // ===========================================
 
-    // ⚠️ 注意：整个文件里，这行代码只能出现一次！
+    // ⚠️ 全文件唯一一次定义 supabase
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     const IMAGES = {
@@ -103,14 +95,8 @@
     function setBackground(imageName) {
         const imgUrl = IMAGES[imageName];
         if (!imgUrl) return;
-        
         const img = new Image();
-        img.onload = function() {
-            document.body.style.backgroundImage = `url('${imgUrl}')`;
-        };
-        img.onerror = function() {
-            console.error('图片加载失败:', imgUrl);
-        };
+        img.onload = () => { document.body.style.backgroundImage = `url('${imgUrl}')`; };
         img.src = imgUrl;
     }
 
@@ -129,39 +115,33 @@
         listenForUpdates();
     }
 
-    function handleFocus() {
-        setBackground('writing');
+    function handleFocus() { 
+        setBackground('writing'); 
     }
+    // 👇 暴露给全局 HTML 使用
+    window.handleFocus = handleFocus;
 
     async function submitTrait() {
         const text = document.getElementById('trait-input').value;
         if (!text.trim()) return alert("信纸还是空的哦！");
-
         const btn = document.getElementById('submit-btn');
         const statusText = document.getElementById('status-text');
-        
         btn.disabled = true;
         btn.innerText = "信件飞行中...";
         localStorage.setItem('my_text_' + roomId, text);
 
         try {
             const { data: existingData, error: fetchError } = await supabase.from('messages').select('*').eq('room_id', roomId).single();
-
             if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
 
             let updateData = {};
-            let isUserA = false;
-
             if (!existingData || !existingData.user_a) {
                 updateData = { room_id: roomId, user_a: text };
-                isUserA = true;
             } else if (!existingData.user_b) {
                 updateData = { user_b: text };
             } else {
-                alert("这个信箱已经满啦！");
-                btn.disabled = false;
-                btn.innerText = "投入信箱";
-                return;
+                alert("信箱已满！");
+                btn.disabled = false; btn.innerText = "投入信箱"; return;
             }
 
             const { error } = await supabase.from('messages').upsert(updateData);
@@ -170,17 +150,14 @@
             btn.innerText = "✅ 已投入信箱";
             statusText.innerText = "信件已送达，等待对方也写完...";
             setBackground('submitted');
-            
-            if(isUserA && !existingData) {
-                 statusText.innerHTML += `<br><span style="font-size:12px; color:#d46b6b;">(别忘了把链接发给对方哦)</span>`;
-            }
         } catch (err) {
             console.error(err);
             alert("出错了：" + err.message);
-            btn.disabled = false;
-            btn.innerText = "重试";
+            btn.disabled = false; btn.innerText = "重试";
         }
     }
+    // 👇 暴露给全局 HTML 使用
+    window.submitTrait = submitTrait;
 
     function listenForUpdates() {
         supabase.channel('room-' + roomId)
@@ -188,7 +165,6 @@
                 checkCompletion(payload.new);
             })
             .subscribe();
-        
         supabase.from('messages').select('*').eq('room_id', roomId).single().then(({ data, error }) => {
             if (!error && data) checkCompletion(data);
         });
@@ -199,16 +175,11 @@
             document.getElementById('input-area').classList.add('hidden');
             document.getElementById('result-area').classList.remove('hidden');
             setBackground('success');
-            
             const myText = localStorage.getItem('my_text_' + roomId) || "未知内容";
-            let otherText = (myText === data.user_a) ? data.user_b : data.user_a;
-            
-            document.getElementById('other-trait').innerText = otherText;
+            document.getElementById('other-trait').innerText = (myText === data.user_a) ? data.user_b : data.user_a;
             document.getElementById('my-trait').innerText = myText;
         }
     }
-    window.submitTrait = submitTrait;
-window.handleFocus = handleFocus;
 </script>
 
 </body>
